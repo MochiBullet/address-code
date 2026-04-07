@@ -123,48 +123,62 @@
             pointer-events: none;
         }
 
-        /* Results */
-        .result-box {
+        /* Fixed Result Bar */
+        .result-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(6, 8, 12, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 16px;
             display: none;
-            text-align: center;
-            padding: 24px 16px;
         }
-        .result-box.show { display: block; }
-        .result-code {
+        .result-bar.show { display: block; }
+        .result-bar-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .result-bar-code {
             font-family: 'SF Mono', 'Fira Code', monospace;
-            font-size: 36px;
+            font-size: 28px;
             font-weight: 700;
             color: var(--primary);
-            letter-spacing: 0.05em;
+            letter-spacing: 0.03em;
             cursor: pointer;
             transition: opacity 0.15s;
+            flex-shrink: 0;
         }
-        .result-code:hover { opacity: 0.8; }
-        .result-addr {
-            font-size: 13px;
+        .result-bar-code:hover { opacity: 0.7; }
+        .result-bar-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .result-bar-addr {
+            font-size: 12px;
             color: var(--text-muted);
-            margin-top: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .result-detail {
+        .result-bar-detail {
             display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 10px;
+            gap: 6px;
+            margin-top: 4px;
             flex-wrap: wrap;
         }
         .result-tag {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: 10px;
             font-family: monospace;
             background: rgba(255,255,255,0.04);
             border: 1px solid var(--border);
-            color: var(--text-muted);
-        }
-        .result-hint {
-            font-size: 11px;
             color: var(--text-dim);
-            margin-top: 8px;
         }
 
         /* Filtered list */
@@ -281,6 +295,17 @@
     </style>
 </head>
 <body>
+    <!-- Fixed Result Bar -->
+    <div class="result-bar" id="resultBar">
+        <div class="result-bar-inner">
+            <div class="result-bar-code" id="resultCode" onclick="copyCode()"></div>
+            <div class="result-bar-info">
+                <div class="result-bar-addr" id="resultAddr"></div>
+                <div class="result-bar-detail" id="resultDetail"></div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>住所コード検索</h1>
@@ -320,18 +345,6 @@
                 <div class="match-count" id="matchCount"></div>
                 <div class="match-list" id="matchList"></div>
             </div>
-        </div>
-
-        <!-- Result -->
-        <div class="card">
-            <div class="card-title">住所コード</div>
-            <div class="result-box" id="resultBox">
-                <div class="result-code" id="resultCode" onclick="copyCode()"></div>
-                <div class="result-addr" id="resultAddr"></div>
-                <div class="result-detail" id="resultDetail"></div>
-                <div class="result-hint">タップでコピー</div>
-            </div>
-            <div id="resultEmpty" style="color:var(--text-dim);font-size:13px;">住所を選択すると住所コードが表示されます</div>
         </div>
 
         <div class="footer">
@@ -413,8 +426,7 @@
     const matchCount = document.getElementById('matchCount');
     const btnFetch = document.getElementById('btnFetch');
     const fetchStatus = document.getElementById('fetchStatus');
-    const resultBox = document.getElementById('resultBox');
-    const resultEmpty = document.getElementById('resultEmpty');
+    const resultBar = document.getElementById('resultBar');
     const resultCode = document.getElementById('resultCode');
     const resultAddr = document.getElementById('resultAddr');
     const resultDetail = document.getElementById('resultDetail');
@@ -614,8 +626,7 @@
 
     // === Show result ===
     function showResult(d) {
-        resultEmpty.style.display = 'none';
-        resultBox.classList.add('show');
+        resultBar.classList.add('show');
 
         const fullCode = d.cityCode + '-' + d.townCode + (d.subCode ? '-' + d.subCode : '');
         resultCode.textContent = fullCode;
@@ -627,8 +638,7 @@
     }
 
     function hideResult() {
-        resultBox.classList.remove('show');
-        resultEmpty.style.display = 'block';
+        resultBar.classList.remove('show');
     }
 
     // === Copy ===
