@@ -397,7 +397,8 @@
         ]}
     ];
 
-    const CSV_BASE = 'https://www.kodokensaku.mlit.go.jp/motas/resource/1775198897000/jusho_csv/jusho_csv/';
+    // CSVは自リポジトリにホスト（国交省サーバーはCORS非対応のため）
+    const CSV_BASE = 'https://mochibullet.github.io/address-code/data/';
 
     // === State ===
     let currentData = []; // parsed CSV rows
