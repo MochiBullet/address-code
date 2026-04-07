@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>住所コード検索</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #06080c;
+            --bg-card: #0d1117;
+            --border: rgba(255,255,255,0.06);
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --text-dim: #484f58;
+            --primary: #6C9CFF;
+            --accent-purple: #c084fc;
+            --accent-green: #4ade80;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px 16px 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .header {
+            text-align: center;
+            padding: 12px 0 0;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header p { color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+        .card-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 14px;
+        }
+
+        .field { margin-bottom: 14px; }
+        .field:last-child { margin-bottom: 0; }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            appearance: none;
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 28px;
+            cursor: pointer;
+        }
+        select option { background: #161b22; }
+        select:focus, input:focus { border-color: var(--primary); }
+        select:disabled, input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Search input */
+        .search-wrap {
+            position: relative;
+        }
+        .search-wrap input {
+            padding-left: 34px;
+        }
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        /* Results */
+        .result-box {
+            display: none;
+            text-align: center;
+            padding: 24px 16px;
+        }
+        .result-box.show { display: block; }
+        .result-code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .result-code:hover { opacity: 0.8; }
+        .result-addr {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        .result-detail {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .result-tag {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-family: monospace;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        .result-hint {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        /* Filtered list */
+        .match-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 8px;
+            display: none;
+        }
+        .match-list.show { display: block; }
+        .match-list::-webkit-scrollbar { width: 6px; }
+        .match-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .match-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.1s;
+            font-size: 13px;
+        }
+        .match-item:hover { background: rgba(255,255,255,0.04); }
+        .match-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+        .match-name { color: var(--text); }
+        .match-code {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+        .match-count {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        /* Update button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.04);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+            border: none;
+            color: #fff;
+            font-weight: 600;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .status {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+        .status.ok { color: var(--accent-green); }
+        .status.err { color: #f66; }
+
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--accent-green);
+            color: #000;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .footer {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 11px;
+        }
+        .footer a { color: var(--primary); text-decoration: none; }
+        .source-note {
+            font-size: 10px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>住所コード検索</h1>
+            <p>自動車登録用 住所コード検索ツール</p>
+        </div>
+
+        <!-- Step 1: Prefecture / Region -->
+        <div class="card">
+            <div class="card-title">1. 地域を選択</div>
+            <div class="field">
+                <label>管轄（運輸支局）</label>
+                <select id="selRegion">
+                    <option value="">選択してください</option>
+                </select>
+            </div>
+            <div class="field">
+                <button class="btn btn-primary" id="btnFetch" disabled>データを取得</button>
+                <div class="status" id="fetchStatus"></div>
+            </div>
+        </div>
+
+        <!-- Step 2: Search -->
+        <div class="card">
+            <div class="card-title">2. 住所を検索</div>
+            <div class="field">
+                <label>市区町村</label>
+                <select id="selCity" disabled>
+                    <option value="">先にデータを取得してください</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>町名を検索</label>
+                <div class="search-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchTown" placeholder="町名を入力して絞り込み" disabled>
+                </div>
+                <div class="match-count" id="matchCount"></div>
+                <div class="match-list" id="matchList"></div>
+            </div>
+        </div>
+
+        <!-- Result -->
+        <div class="card">
+            <div class="card-title">住所コード</div>
+            <div class="result-box" id="resultBox">
+                <div class="result-code" id="resultCode" onclick="copyCode()"></div>
+                <div class="result-addr" id="resultAddr"></div>
+                <div class="result-detail" id="resultDetail"></div>
+                <div class="result-hint">タップでコピー</div>
+            </div>
+            <div id="resultEmpty" style="color:var(--text-dim);font-size:13px;">住所を選択すると住所コードが表示されます</div>
+        </div>
+
+        <div class="footer">
+            <span>Made by <a href="https://mochi-bullet-magazine.vercel.app/" target="_blank">MochiBullet</a></span>
+            <div class="source-note">データ出典: <a href="https://www.kodokensaku.mlit.go.jp/motas/" target="_blank">国土交通省 自動車登録関係コード検索システム</a></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    // === Region / Office mapping ===
+    const regions = [
+        { group: '北海道', offices: [
+            { name: '札幌', file: 'sapporo' }, { name: '函館', file: 'hakodate' }, { name: '旭川', file: 'asahikawa' },
+            { name: '室蘭', file: 'muroran' }, { name: '釧路', file: 'kushiro' }, { name: '帯広', file: 'obihiro' }, { name: '北見', file: 'kitami' }
+        ]},
+        { group: '東北', offices: [
+            { name: '青森', file: 'aomori' }, { name: '八戸', file: 'hachinohe' }, { name: '岩手', file: 'iwate' },
+            { name: '宮城', file: 'miyagi' }, { name: '秋田', file: 'akita' }, { name: '山形', file: 'yamagata' },
+            { name: '庄内', file: 'shonai' }, { name: '福島', file: 'fukushima' }, { name: 'いわき', file: 'iwaki' }
+        ]},
+        { group: '関東', offices: [
+            { name: '茨城', file: 'ibaraki' }, { name: '土浦', file: 'tsuchiura' }, { name: '栃木', file: 'tochigi' },
+            { name: '佐野', file: 'sano' }, { name: '群馬', file: 'gunma' }, { name: '埼玉(大宮)', file: 'saitama' },
+            { name: '所沢', file: 'tokorozawa' }, { name: '熊谷', file: 'kumagaya' }, { name: '春日部', file: 'kasukabe' },
+            { name: '千葉', file: 'chiba' }, { name: '習志野', file: 'narashino' }, { name: '袖ヶ浦', file: 'sodegaura' },
+            { name: '野田', file: 'noda' }, { name: '東京(品川)', file: 'tokyo' }, { name: '練馬', file: 'nerima' },
+            { name: '足立', file: 'adachi' }, { name: '八王子', file: 'hachioji' }, { name: '多摩', file: 'tama' },
+            { name: '神奈川(横浜)', file: 'kanagawa' }, { name: '川崎', file: 'kawasaki' }, { name: '湘南', file: 'shonan' },
+            { name: '相模', file: 'sagami' }, { name: '山梨', file: 'yamanashi' }
+        ]},
+        { group: '北陸信越', offices: [
+            { name: '新潟', file: 'niigata' }, { name: '長岡', file: 'nagaoka' }, { name: '富山', file: 'toyama' },
+            { name: '石川', file: 'ishikawa' }, { name: '長野', file: 'nagano' }, { name: '松本', file: 'matsumoto' }
+        ]},
+        { group: '中部', offices: [
+            { name: '福井', file: 'fukui' }, { name: '岐阜', file: 'gifu' }, { name: '飛騨', file: 'hida' },
+            { name: '静岡', file: 'shizuoka' }, { name: '浜松', file: 'hamamatsu' }, { name: '沼津', file: 'numazu' },
+            { name: '愛知(名古屋)', file: 'aichi' }, { name: '豊橋', file: 'toyohashi' }, { name: '西三河(岡崎)', file: 'nishimikawa' },
+            { name: '小牧', file: 'komaki' }, { name: '三重', file: 'mie' }
+        ]},
+        { group: '近畿', offices: [
+            { name: '滋賀', file: 'shiga' }, { name: '京都', file: 'kyoto' }, { name: '大阪(なにわ)', file: 'osaka' },
+            { name: 'なにわ', file: 'naniwa' }, { name: '和泉', file: 'izumi' }, { name: '奈良', file: 'nara' },
+            { name: '和歌山', file: 'wakayama' }, { name: '神戸', file: 'hyogo' }, { name: '姫路', file: 'himeji' }
+        ]},
+        { group: '中国', offices: [
+            { name: '鳥取', file: 'tottori' }, { name: '島根', file: 'shimane' }, { name: '岡山', file: 'okayama' },
+            { name: '広島', file: 'hiroshima' }, { name: '福山', file: 'fukuyama' }, { name: '山口', file: 'yamaguchi' }
+        ]},
+        { group: '四国', offices: [
+            { name: '徳島', file: 'tokushima' }, { name: '香川', file: 'kagawa' }, { name: '愛媛', file: 'ehime' }, { name: '高知', file: 'kochi' }
+        ]},
+        { group: '九州', offices: [
+            { name: '福岡', file: 'fukuoka' }, { name: '北九州', file: 'kitakyusyu' }, { name: '久留米', file: 'kurume' },
+            { name: '筑豊', file: 'chikuho' }, { name: '佐賀', file: 'saga' }, { name: '長崎', file: 'nagasaki' },
+            { name: '佐世保', file: 'sasebo' }, { name: '厳原', file: 'izuhara' }, { name: '熊本', file: 'kumamoto' },
+            { name: '大分', file: 'oita' }, { name: '宮崎', file: 'miyazaki' }, { name: '鹿児島', file: 'kagoshima' }, { name: '奄美', file: 'amami' }
+        ]},
+        { group: '沖縄', offices: [
+            { name: '沖縄', file: 'rikuun' }, { name: '宮古', file: 'miyako' }, { name: '八重山', file: 'yaeyama' }
+        ]}
+    ];
+
+    const CSV_BASE = 'https://www.kodokensaku.mlit.go.jp/motas/resource/1775198897000/jusho_csv/jusho_csv/';
+
+    // === State ===
+    let currentData = []; // parsed CSV rows
+    let cities = [];      // unique city names
+    let filteredTowns = [];
+
+    // === Build region select ===
+    const selRegion = document.getElementById('selRegion');
+    const selCity = document.getElementById('selCity');
+    const searchTown = document.getElementById('searchTown');
+    const matchList = document.getElementById('matchList');
+    const matchCount = document.getElementById('matchCount');
+    const btnFetch = document.getElementById('btnFetch');
+    const fetchStatus = document.getElementById('fetchStatus');
+    const resultBox = document.getElementById('resultBox');
+    const resultEmpty = document.getElementById('resultEmpty');
+    const resultCode = document.getElementById('resultCode');
+    const resultAddr = document.getElementById('resultAddr');
+    const resultDetail = document.getElementById('resultDetail');
+
+    // Populate region dropdown
+    regions.forEach(r => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = r.group;
+        r.offices.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.file;
+            opt.textContent = o.name;
+            optgroup.appendChild(opt);
+        });
+        selRegion.appendChild(optgroup);
+    });
+
+    selRegion.addEventListener('change', () => {
+        btnFetch.disabled = !selRegion.value;
+        resetData();
+    });
+
+    // === Fetch CSV ===
+    btnFetch.addEventListener('click', async () => {
+        const file = selRegion.value;
+        if (!file) return;
+
+        btnFetch.disabled = true;
+        btnFetch.innerHTML = '<span class="spinner"></span> 取得中...';
+        fetchStatus.textContent = '';
+        fetchStatus.className = 'status';
+        resetData();
+
+        try {
+            const url = CSV_BASE + file + '.csv';
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+
+            const buf = await res.arrayBuffer();
+            const decoder = new TextDecoder('shift-jis');
+            const text = decoder.decode(buf);
+
+            parseCSV(text);
+
+            fetchStatus.textContent = currentData.length + '件のデータを取得しました';
+            fetchStatus.className = 'status ok';
+
+            // Enable city select
+            selCity.disabled = false;
+            searchTown.disabled = false;
+            populateCities();
+        } catch (e) {
+            fetchStatus.textContent = 'データ取得に失敗しました: ' + e.message;
+            fetchStatus.className = 'status err';
+        }
+
+        btnFetch.disabled = false;
+        btnFetch.innerHTML = 'データを取得';
+    });
+
+    function parseCSV(text) {
+        const lines = text.split('\n');
+        currentData = [];
+        // Skip header: "町村名一文字目カナ","都道府県市区郡名","町村名","都道府県市区郡コード","町村コード","小字コード"
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            // Parse CSV with quotes
+            const cols = parseCSVLine(line);
+            if (cols.length >= 5) {
+                currentData.push({
+                    kana: cols[0],
+                    city: cols[1],    // 都道府県市区郡名
+                    town: cols[2],    // 町村名
+                    cityCode: cols[3], // 都道府県市区郡コード
+                    townCode: cols[4], // 町村コード
+                    subCode: cols[5] || '' // 小字コード
+                });
+            }
+        }
+    }
+
+    function parseCSVLine(line) {
+        const result = [];
+        let current = '';
+        let inQuote = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (inQuote) {
+                if (ch === '"') {
+                    if (i + 1 < line.length && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuote = false;
+                    }
+                } else {
+                    current += ch;
+                }
+            } else {
+                if (ch === '"') {
+                    inQuote = true;
+                } else if (ch === ',') {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += ch;
+                }
+            }
+        }
+        result.push(current);
+        return result;
+    }
+
+    function resetData() {
+        currentData = [];
+        cities = [];
+        filteredTowns = [];
+        selCity.innerHTML = '<option value="">先にデータを取得してください</option>';
+        selCity.disabled = true;
+        searchTown.value = '';
+        searchTown.disabled = true;
+        matchList.innerHTML = '';
+        matchList.classList.remove('show');
+        matchCount.textContent = '';
+        hideResult();
+    }
+
+    function populateCities() {
+        // Extract unique cities
+        const citySet = new Map();
+        currentData.forEach(d => {
+            if (!citySet.has(d.city)) {
+                citySet.set(d.city, d.cityCode);
+            }
+        });
+        cities = Array.from(citySet.entries()).map(([name, code]) => ({ name, code }));
+
+        selCity.innerHTML = '<option value="">全て</option>';
+        cities.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name;
+            selCity.appendChild(opt);
+        });
+    }
+
+    // === City selection ===
+    selCity.addEventListener('change', () => {
+        searchTown.value = '';
+        filterTowns();
+    });
+
+    // === Town search ===
+    searchTown.addEventListener('input', filterTowns);
+
+    function filterTowns() {
+        const cityFilter = selCity.value;
+        const query = searchTown.value.trim();
+
+        let data = currentData;
+        if (cityFilter) {
+            data = data.filter(d => d.city === cityFilter);
+        }
+        if (query) {
+            data = data.filter(d => d.town.includes(query) || d.kana.includes(query));
+        }
+
+        filteredTowns = data;
+        matchCount.textContent = filteredTowns.length + '件';
+
+        if (filteredTowns.length > 0 && filteredTowns.length <= 500) {
+            matchList.innerHTML = '';
+            filteredTowns.forEach(d => {
+                const item = document.createElement('div');
+                item.className = 'match-item';
+                const fullCode = d.cityCode + '-' + d.townCode + (d.subCode ? '-' + d.subCode : '');
+                item.innerHTML = '<span class="match-name">' + d.city + ' ' + d.town + '</span><span class="match-code">' + fullCode + '</span>';
+                item.addEventListener('click', () => showResult(d));
+                matchList.appendChild(item);
+            });
+            matchList.classList.add('show');
+        } else if (filteredTowns.length > 500) {
+            matchList.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-dim);text-align:center;">結果が多すぎます。市区町村を選択するか、町名を入力して絞り込んでください</div>';
+            matchList.classList.add('show');
+        } else {
+            matchList.innerHTML = '';
+            matchList.classList.remove('show');
+            matchCount.textContent = '該当なし';
+        }
+
+        // Auto-select if only 1 result
+        if (filteredTowns.length === 1) {
+            showResult(filteredTowns[0]);
+        }
+    }
+
+    // === Show result ===
+    function showResult(d) {
+        resultEmpty.style.display = 'none';
+        resultBox.classList.add('show');
+
+        const fullCode = d.cityCode + d.townCode + d.subCode;
+        resultCode.textContent = fullCode;
+        resultAddr.textContent = d.city + ' ' + d.town;
+        resultDetail.innerHTML =
+            '<span class="result-tag">市区郡: ' + d.cityCode + '</span>' +
+            '<span class="result-tag">町村: ' + d.townCode + '</span>' +
+            (d.subCode ? '<span class="result-tag">小字: ' + d.subCode + '</span>' : '');
+    }
+
+    function hideResult() {
+        resultBox.classList.remove('show');
+        resultEmpty.style.display = 'block';
+    }
+
+    // === Copy ===
+    function copyCode() {
+        const code = resultCode.textContent;
+        if (!code) return;
+        navigator.clipboard.writeText(code).then(() => {
+            showToast(code + ' をコピーしました');
+        });
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+    </script>
+</body>
+</html>
