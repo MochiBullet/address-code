@@ -216,32 +216,6 @@
             margin-top: 4px;
         }
 
-        /* Update button */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 14px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: rgba(255,255,255,0.04);
-            color: var(--text-muted);
-            font-size: 12px;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
-        .btn:active { transform: scale(0.97); }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--accent-purple));
-            border: none;
-            color: #fff;
-            font-weight: 600;
-        }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         .status {
             font-size: 11px;
@@ -312,32 +286,22 @@
             <p>自動車登録用 住所コード検索ツール</p>
         </div>
 
-        <!-- Step 1: Prefecture / Region -->
         <div class="card">
-            <div class="card-title">1. 地域を選択</div>
             <div class="field">
                 <label>管轄（運輸支局）</label>
                 <select id="selRegion">
                     <option value="">選択してください</option>
                 </select>
-            </div>
-            <div class="field">
-                <button class="btn btn-primary" id="btnFetch" disabled>データを取得</button>
                 <div class="status" id="fetchStatus"></div>
             </div>
-        </div>
-
-        <!-- Step 2: Search -->
-        <div class="card">
-            <div class="card-title">2. 住所を検索</div>
             <div class="field">
                 <label>市区町村</label>
                 <select id="selCity" disabled>
-                    <option value="">先にデータを取得してください</option>
+                    <option value="">管轄を選択してください</option>
                 </select>
             </div>
             <div class="field">
-                <label>町名を検索</label>
+                <label>町名</label>
                 <div class="search-wrap">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="searchTown" placeholder="町名を入力して絞り込み" disabled>
@@ -424,7 +388,6 @@
     const searchTown = document.getElementById('searchTown');
     const matchList = document.getElementById('matchList');
     const matchCount = document.getElementById('matchCount');
-    const btnFetch = document.getElementById('btnFetch');
     const fetchStatus = document.getElementById('fetchStatus');
     const resultBar = document.getElementById('resultBar');
     const resultCode = document.getElementById('resultCode');
@@ -444,47 +407,44 @@
         selRegion.appendChild(optgroup);
     });
 
-    selRegion.addEventListener('change', () => {
-        btnFetch.disabled = !selRegion.value;
-        resetData();
-    });
+    // === Auto-fetch on region select ===
+    let fetchCache = {}; // cache fetched data by file name
 
-    // === Fetch CSV ===
-    btnFetch.addEventListener('click', async () => {
+    selRegion.addEventListener('change', async () => {
         const file = selRegion.value;
+        resetData();
         if (!file) return;
 
-        btnFetch.disabled = true;
-        btnFetch.innerHTML = '<span class="spinner"></span> 取得中...';
+        // Show loading state
+        selCity.innerHTML = '<option value="">読み込み中...</option>';
         fetchStatus.textContent = '';
         fetchStatus.className = 'status';
-        resetData();
 
         try {
-            const url = CSV_BASE + file + '.csv';
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-
-            const buf = await res.arrayBuffer();
-            const decoder = new TextDecoder('shift-jis');
-            const text = decoder.decode(buf);
+            let text;
+            if (fetchCache[file]) {
+                text = fetchCache[file];
+            } else {
+                const url = CSV_BASE + file + '.csv';
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const buf = await res.arrayBuffer();
+                text = new TextDecoder('shift-jis').decode(buf);
+                fetchCache[file] = text;
+            }
 
             parseCSV(text);
-
-            fetchStatus.textContent = currentData.length + '件のデータを取得しました';
+            fetchStatus.textContent = currentData.length + '件';
             fetchStatus.className = 'status ok';
 
-            // Enable city select
             selCity.disabled = false;
             searchTown.disabled = false;
             populateCities();
         } catch (e) {
-            fetchStatus.textContent = 'データ取得に失敗しました: ' + e.message;
+            fetchStatus.textContent = '取得失敗: ' + e.message;
             fetchStatus.className = 'status err';
+            selCity.innerHTML = '<option value="">取得に失敗しました</option>';
         }
-
-        btnFetch.disabled = false;
-        btnFetch.innerHTML = 'データを取得';
     });
 
     function parseCSV(text) {
@@ -545,7 +505,7 @@
         currentData = [];
         cities = [];
         filteredTowns = [];
-        selCity.innerHTML = '<option value="">先にデータを取得してください</option>';
+        selCity.innerHTML = '<option value="">管轄を選択してください</option>';
         selCity.disabled = true;
         searchTown.value = '';
         searchTown.disabled = true;
