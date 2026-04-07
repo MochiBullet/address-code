@@ -617,7 +617,7 @@
         resultEmpty.style.display = 'none';
         resultBox.classList.add('show');
 
-        const fullCode = d.cityCode + d.townCode + d.subCode;
+        const fullCode = d.cityCode + '-' + d.townCode + (d.subCode ? '-' + d.subCode : '');
         resultCode.textContent = fullCode;
         resultAddr.textContent = d.city + ' ' + d.town;
         resultDetail.innerHTML =
@@ -635,8 +635,9 @@
     function copyCode() {
         const code = resultCode.textContent;
         if (!code) return;
-        navigator.clipboard.writeText(code).then(() => {
-            showToast(code + ' をコピーしました');
+        const raw = code.replace(/-/g, '');
+        navigator.clipboard.writeText(raw).then(() => {
+            showToast(raw + ' をコピーしました');
         });
     }
 
